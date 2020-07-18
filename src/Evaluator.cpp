@@ -2,6 +2,7 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include <stack>
 
 float operate(float num1, float num2, char op)
 {
@@ -20,25 +21,24 @@ float operate(float num1, float num2, char op)
                 return num1 / num2;
                 break;
         default:
-                return -1;
+                std::cout<<"Invalid operator"<<std::endl;
     }
-    //return 0;
 }
 
 void evaluate(std::string exp)
 {
-    std::cout<<exp<<std::endl;
-    std::vector<float> numbers;
-    std::vector<char> symbols;
-    for (auto i = 0; i < exp.size(); ++i)
+    //std::cout<<exp<<std::endl;
+    std::stack<float> numbers;
+    std::stack<char> symbols;
+    for (auto i = 0; i < exp.size(); i++)
     {
         //Identify numbers
-        if (isdigit(exp[i]))
-        {
+        if (isdigit(exp[i])){
             std::string test;
             /*After first occurance of a digit, iterate through the string 
             to get the complete floating point number by checking the subsequent characters.
             The end of a floating point number is identified by the next occurance of a symbol.*/
+            
             while (i < exp.size())
             {
                 if ((isdigit(exp[i]) || exp[i] == '.'))
@@ -49,28 +49,67 @@ void evaluate(std::string exp)
                 else
                 {
                     break;
-                }
-                
-            }    
-            numbers.push_back(stof(test));
-            symbols.push_back(exp[i]);
+                }    
+            } 
+            numbers.push(stof(test));
+            i--; 
         }
         //Identify symbols
+        else if(exp[i] == '('){ 
+			symbols.push(exp[i]); 
+		}
+        //If ')' is encountered evaluate the expression after the immediate previous '('
+        else if(exp[i] == ')'){
+            while(!symbols.empty() && symbols.top() != '(') 
+			{ 
+                char op = symbols.top();
+				auto num1 = numbers.top();
+				numbers.pop(); 				
+				auto num2 = numbers.top(); 
+                numbers.pop();
+                auto res = operate(num2, num1, op); 
+				numbers.push(res); 
+                symbols.pop();
+			} 	 
+			if(!symbols.empty()){ 
+			symbols.pop();
+            } 
+        } 
+        //If the symbol is an operator add to the stack.
+        else if(exp[i] == '+' || exp[i] == '-' || exp[i] == '*' || exp[i] == '/'){
+            symbols.push(exp[i]);
+        }
         else
         {
-            symbols.push_back(exp[i]);
+            std::cout<<"Invalid character : "<<exp[i]<<std::endl;
+            while(!symbols.empty()){
+                symbols.pop();
+            }
+            while(!numbers.empty()){
+                numbers.pop();
+            }			
+            continue;
         }
     }
-    for(auto num:numbers)
-    {
-        std::cout<<num<<" ";
-    }
-        for(auto num:symbols)
-    {
-        std::cout<<num<<" ";
-    }
-    std::cout<<std::endl;
 
+        //Validate the final operation
+        while(!symbols.empty()) 
+			{ 
+                char op = symbols.top();
+				auto num1 = numbers.top();
+				numbers.pop(); 				
+				auto num2 = numbers.top(); 
+                numbers.pop();
+                auto res = operate(num2, num1, op); 
+				numbers.push(res); 
+                symbols.pop();
+			}
+    
+            if(!numbers.empty()) 
+			{
+            std::cout<<"Output : "<<numbers.top()<<std::endl;
+            numbers.pop();
+            }
 }
 int main(int argc, char* argv[]) {
 
@@ -96,7 +135,6 @@ int main(int argc, char* argv[]) {
 
     for(auto exp:input)
     {
-        //std::cout<<str<<std::endl;
         evaluate(exp);
     }
     return 0;
