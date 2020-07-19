@@ -1,0 +1,10 @@
+# Ignore CMake cache files
+CMakeCache.txt
+**/CMakeFiles/
+**/Makefile
+
+# Ignore shadow build directory
+build/
+
+#ignore vscode project files
+.vscode
