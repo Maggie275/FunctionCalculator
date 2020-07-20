@@ -28,3 +28,11 @@
 17+(24.4/12.2$)
 # Term 15 mit Syntaxfehler
 17+(24.4/ab12.2)
+# Term 16
+17+(-24.4/12.2)
+# Term 17
+17+((-24.4)/12.2)
+# Term 18 mit Syntaxfehler
+17+(2 * -4)
+# Term 19
+17+(2 * (-4))

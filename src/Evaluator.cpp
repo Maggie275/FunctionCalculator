@@ -1,20 +1,21 @@
 #include <iostream>
 #include <fstream>
 #include <string>
-#include <vector>
 #include <stack>
 #include <algorithm>
 
-enum TokenType
+bool isNegative = false;
+
+enum eTokenType
 {
-    eTYPE_DIGIT = 0,
-    eTYPE_OPEN_BRACE,
-    eTYPE_CLOSE_BRACE,
-    eTYPE_OPERATOR,
-    eTYPE_NONE = 255
+    TYPE_DIGIT = 0,
+    TYPE_OPEN_BRACE,
+    TYPE_CLOSE_BRACE,
+    TYPE_OPERATOR,
+    TYPE_NONE = 255
 };
 
-int precedence(char op)
+int checkPrecedence(char op)
 {
     if (op == '+' || op == '-')
         return 1;
@@ -46,12 +47,12 @@ float operate(float num1, float num2, char op)
     }
 }
 
-void apply(std::stack<float> &digits, std::stack<char> &symbols)
+void apply(std::stack<float> &digits, std::stack<char> &operators)
 {
-    char op = symbols.top();
-    if (!symbols.empty())
+    char op = operators.top();
+    if (!operators.empty())
     {
-        symbols.pop();
+        operators.pop();
     }
     float num1 = digits.top();
     if (!digits.empty())
@@ -68,11 +69,11 @@ void apply(std::stack<float> &digits, std::stack<char> &symbols)
 
 void evaluate(const std::string &exp)
 {
-    //std::cout << exp << std::endl;
     std::stack<float> digits;
-    std::stack<char> symbols;
-    TokenType prevTok = eTYPE_NONE;
+    std::stack<char> operators;
+    eTokenType prevTok = TYPE_NONE;
 
+    //Check for braces mismatch
     if (std::count(exp.begin(), exp.end(), '(') == std::count(exp.begin(), exp.end(), ')'))
     {
         for (auto i = 0; i < exp.size(); i++)
@@ -80,102 +81,111 @@ void evaluate(const std::string &exp)
             //Identify numbers
             if (isdigit(exp[i]))
             {
-                // eg. (2+3)2 --> is treated as (2+3)*2
-                if (prevTok == eTYPE_CLOSE_BRACE)
-                {
-                    symbols.push('*');
-                }
                 // eg. (23.56 45.6) Is treated as a syntax error
-                else if (prevTok == eTYPE_DIGIT)
+                if (prevTok == TYPE_DIGIT)
                 {
                     std::cout << "Syntax Error : Missing operator" << std::endl;
                     return;
                 }
+                // eg. (2+3)2 --> is treated as (2+3)*2
+                else if (prevTok == TYPE_CLOSE_BRACE)
+                {
+                    operators.push('*');
+                }
 
-                std::string digit_str;
+                std::string strDigit; // temporary string to hold parsed floating numbers
 
                 /*After first occurance of a digit, iterate through the string 
                 to get the complete floating point number by checking the subsequent characters.
                 The end of a floating point number is identified by the next occurance of a symbol.*/
-                while (i < exp.size())
+                while (i < exp.size() && (isdigit(exp[i]) || exp[i] == '.'))
                 {
-                    if ((isdigit(exp[i]) || exp[i] == '.'))
-                    {
-                        digit_str.push_back(exp[i]);
-                        i++;
-                    }
-                    else
-                    {
-                        break;
-                    }
+                    strDigit.push_back(exp[i]);
+                    i++;
                 }
 
                 std::string::size_type sz;
-                digits.push(stof(digit_str, &sz));
+                float digit = stof(strDigit, &sz);
 
                 // eg. (45 + 67.4556.34) is treated as a syntax error.
-                if (sz != digit_str.size())
+                if (sz != strDigit.size())
                 {
                     std::cout << "Syntax Error : Invalid floating point number" << std::endl;
                     return;
                 }
 
-                i--;
-                prevTok = eTYPE_DIGIT;
+                //Check for a negative number
+                if (isNegative && exp[i] == ')')
+                {
+                    digits.push(-digit);
+                    isNegative = false;
+                }
+                else
+                {
+                    digits.push(digit);
+                    i--;
+                }
+                prevTok = TYPE_DIGIT;
             }
             //Identify symbols
             else if (exp[i] == '(')
             {
-                //2(2+3) --> is treated as 2*(2+3)
-                if (prevTok == eTYPE_DIGIT)
+                //Check for negative numbers
+                if (exp[i + 1] == '-' && std::isdigit(exp[i + 2]))
                 {
-                    symbols.push('*');
+                    isNegative = true;
+                    i++;
+                    continue;
                 }
-                symbols.push(exp[i]);
-                prevTok = eTYPE_OPEN_BRACE;
+                //2(2+3) --> is treated as 2*(2+3)
+                if (prevTok == TYPE_DIGIT)
+                {
+                    operators.push('*');
+                }
+                operators.push(exp[i]);
+                prevTok = TYPE_OPEN_BRACE;
             }
             else if (exp[i] == ')')
             {
                 // eg. (2+ )+5 is treated as a syntax error
-                if (prevTok == eTYPE_OPERATOR)
+                if (prevTok == TYPE_OPERATOR)
                 {
                     std::cout << "Syntax Error : Missing operand/Extra operator identified" << std::endl;
                     return;
                 }
                 //If ')' is encountered evaluate the expression after the immediate previous '('
-                while (!symbols.empty() && symbols.top() != '(')
+                while (!operators.empty() && operators.top() != '(')
                 {
-                    apply(digits, symbols);
+                    apply(digits, operators);
                 }
                 //Remove the previous corresponding '('
-                if (!symbols.empty())
+                if (!operators.empty())
                 {
-                    symbols.pop();
+                    operators.pop();
                 }
-                prevTok = eTYPE_CLOSE_BRACE;
+                prevTok = TYPE_CLOSE_BRACE;
+            }
+            else if (validateOperator(exp[i]))
+            {
+                // eg. (2+ *3) and (*2+3) is treated as a syntax error
+                if ((prevTok != TYPE_DIGIT) && (prevTok != TYPE_CLOSE_BRACE))
+                {
+                    std::cout << "Syntax Error : Missing operand/Extra operator identified" << std::endl;
+                    return;
+                }
+                /*If the symbol is an operator, check for precedence of previous operator in operators stack
+                and evaluate the expression in the current brace.*/
+                while (!operators.empty() && checkPrecedence(operators.top()) >= checkPrecedence(exp[i]))
+                {
+                    apply(digits, operators);
+                }
+                operators.push(exp[i]);
+                prevTok = TYPE_OPERATOR;
             }
             //Ignore empty spaces
             else if (std::isspace(exp[i]))
             {
                 continue;
-            }
-            else if (validateOperator(exp[i]))
-            {
-                // eg. (2+ *3) is treated as a syntax error
-                if ((prevTok != eTYPE_DIGIT) && (prevTok != eTYPE_CLOSE_BRACE))
-                {
-                    std::cout << "Syntax Error : Missing operand/Extra operator identified" << std::endl;
-                    return;
-                }
-
-                /*If the symbol is an operator, check for precedence of previous operator in symbols stack
-                and evaluate the expression in the current brace.*/
-                while (!symbols.empty() && precedence(symbols.top()) >= precedence(exp[i]))
-                {
-                    apply(digits, symbols);
-                }
-                symbols.push(exp[i]);
-                prevTok = eTYPE_OPERATOR;
             }
             else
             {
@@ -184,9 +194,9 @@ void evaluate(const std::string &exp)
             }
         }
         //Evaluate the final expression.
-        while (!symbols.empty())
+        while (!operators.empty())
         {
-            apply(digits, symbols);
+            apply(digits, operators);
         }
 
         if (!digits.empty())
@@ -205,7 +215,6 @@ int main(int argc, char *argv[])
 
     std::ifstream ipfile(argv[1], std::ifstream::in);
     std::string line;
-    std::vector<std::string> input;
 
     //Read lines from the input file into a vector that stores only the expressions
     if (ipfile.is_open())
@@ -221,12 +230,8 @@ int main(int argc, char *argv[])
                 //Ignore comments
                 if (line[0] != '#')
                 {
-                    input.push_back(line);
+                    evaluate(line);
                 }
-            }
-            for (const auto &exp : input)
-            {
-                evaluate(exp);
             }
         }
         ipfile.close();
